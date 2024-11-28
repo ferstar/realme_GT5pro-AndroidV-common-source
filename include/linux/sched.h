@@ -72,6 +72,10 @@ struct signal_struct;
 struct task_delay_info;
 struct task_group;
 
+#ifdef CONFIG_HMBIRD_SCHED
+#include <linux/sched/ext.h>
+#endif
+
 /*
  * Task state bitmask. NOTE! These bits are also
  * encoded in fs/proc/array.c: get_task_state().
@@ -1547,7 +1551,11 @@ struct task_struct {
 	union rv_task_monitor		rv[RV_PER_TASK_MONITORS];
 #endif
 	ANDROID_KABI_USE(1, unsigned int saved_state);
+#ifdef CONFIG_HMBIRD_SCHED
+	ANDROID_KABI_USE(2, struct sched_ext_entity	*scx;);
+#else
 	ANDROID_KABI_RESERVE(2);
+#endif
 	ANDROID_KABI_RESERVE(3);
 	ANDROID_KABI_RESERVE(4);
 	ANDROID_KABI_RESERVE(5);
@@ -1925,6 +1933,55 @@ static inline int task_nice(const struct task_struct *p)
 {
 	return PRIO_TO_NICE((p)->static_prio);
 }
+
+#ifdef CONFIG_HMBIRD_SCHED
+#define SCHED_PROP_DEADLINE_MASK (0xFF) /* deadline for ext sched class */
+#define SCHED_PROP_DEADLINE_LEVEL1 (1)  /* 1ms for user-aware audio tasks */
+#define SCHED_PROP_DEADLINE_LEVEL2 (2)  /* 2ms for user-aware touch tasks */
+#define SCHED_PROP_DEADLINE_LEVEL3 (3)  /* 4ms for user aware dispaly tasks */
+#define SCHED_PROP_DEADLINE_LEVEL4 (4)  /* 6ms */
+#define SCHED_PROP_DEADLINE_LEVEL5 (5)  /* 8ms */
+#define SCHED_PROP_DEADLINE_LEVEL6 (6)  /* 16ms */
+#define SCHED_PROP_DEADLINE_LEVEL7 (7)  /* 32ms */
+#define SCHED_PROP_DEADLINE_LEVEL8 (8)  /* 64ms */
+#define SCHED_PROP_DEADLINE_LEVEL9 (9)  /* 128ms */
+#define SCHED_EXT_DSQ_TYPE_PERIOD		(0) /* period dsq of scx */
+#define SCHED_EXT_DSQ_TYPE_NON_PERIOD	(1) /* non period dsq of scx */
+static inline long sched_prop_get_deadline_dsq_id(struct task_struct *p)
+{
+	return (p->scx->sched_prop & SCHED_PROP_DEADLINE_MASK) - 1;
+}
+
+#define SCHED_PROP_TOP_THREAD_SHIFT (8)
+#define SCHED_PROP_TOP_THREAD_MASK  (0xf << SCHED_PROP_TOP_THREAD_SHIFT)
+static inline int sched_prop_get_top_thread_id(struct task_struct *p)
+{
+	return (p->scx->sched_prop & SCHED_PROP_TOP_THREAD_MASK) >> SCHED_PROP_TOP_THREAD_SHIFT;
+}
+
+static inline int sched_set_sched_prop(struct task_struct *p, unsigned long sp)
+{
+	if (NULL == p->scx)
+		return 0;
+
+	p->scx->sched_prop = sp;
+	return 0;
+}
+
+static inline unsigned long sched_get_sched_prop(struct task_struct *p)
+{
+	return p->scx->sched_prop;
+}
+
+/* For why we choose (MAX_RT_PRIO / 2), see sched_set_fifo(). */
+static inline bool reject_change_to_scx(struct task_struct *p, int prio)
+{
+	int sp_dl = p->scx->sched_prop & SCHED_PROP_DEADLINE_MASK;
+
+	return (prio < (MAX_RT_PRIO >> 1)) && (sp_dl < SCHED_PROP_DEADLINE_LEVEL3);
+}
+bool task_is_scx(struct task_struct *p);
+#endif
 
 extern int can_nice(const struct task_struct *p, const int nice);
 extern int task_curr(const struct task_struct *p);
