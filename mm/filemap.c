@@ -3033,7 +3033,7 @@ unlock:
 static inline size_t seek_folio_size(struct xa_state *xas, struct folio *folio)
 {
 	if (xa_is_value(folio))
-		return PAGE_SIZE << xa_get_order(xas->xa, xas->xa_index);
+	    return PAGE_SIZE << xas_get_order(xas);
 	return folio_size(folio);
 }
 
