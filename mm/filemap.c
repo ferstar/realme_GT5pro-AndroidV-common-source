@@ -953,15 +953,6 @@ int filemap_add_folio(struct address_space *mapping, struct folio *folio,
 	if (unlikely(ret))
 		__folio_clear_locked(folio);
 	else {
-		/*
-		 * The folio might have been evicted from cache only
-		 * recently, in which case it should be activated like
-		 * any other repeatedly accessed folio.
-		 * The exception is folios getting rewritten; evicting other
-		 * data from the working set, only to cache data that will
-		 * get overwritten with something else, is a waste of memory.
-		 */
-		WARN_ON_ONCE(folio_test_active(folio));
 		if (!(gfp & __GFP_WRITE) && shadow)
 			workingset_refault(folio, shadow);
 		folio_add_lru(folio);
