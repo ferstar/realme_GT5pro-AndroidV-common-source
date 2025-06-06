@@ -20,7 +20,6 @@
 #include "segment.h"
 #include <trace/events/f2fs.h>
 #if defined(CONFIG_F2FS_FS_COMPRESSION_FIXED_OUTPUT) || defined(__ARCH_HAS_LZ4_ACCELERATOR)
-#include "lz4armv8/lz4accel.h"
 #include "f2fs_lz4.h"
 #endif
 
