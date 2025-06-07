@@ -58,7 +58,6 @@
 
 #include "hmbird_export.c"
 #ifdef CONFIG_HMBIRD_SCHED
-#include "slim_sysctl.c"
 # include "ext.c"
+# include "hmbird_sched_proc_main.c"
 #endif
-
