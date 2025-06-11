@@ -1186,50 +1186,16 @@ noswap:
 static struct swap_info_struct *_swap_info_get(swp_entry_t entry)
 {
 	struct swap_info_struct *p;
-	unsigned long offset;
 
 	if (!entry.val)
-		goto out;
+		return NULL;
 	p = swp_swap_info(entry);
-	if (!p)
-		goto bad_nofile;
-	if (data_race(!(p->flags & SWP_USED)))
-		goto bad_device;
-	offset = swp_offset(entry);
-	if (offset >= p->max)
-		goto bad_offset;
+	if (unlikely(!p))
+		return NULL;
+	if (!(p->flags & SWP_USED) || swp_offset(entry) >= p->max)
+		return NULL;
 	if (data_race(!p->swap_map[swp_offset(entry)]))
-		goto bad_free;
-	return p;
-
-bad_free:
-	pr_err("%s: %s%08lx\n", __func__, Unused_offset, entry.val);
-	goto out;
-bad_offset:
-	pr_err("%s: %s%08lx\n", __func__, Bad_offset, entry.val);
-	goto out;
-bad_device:
-	pr_err("%s: %s%08lx\n", __func__, Unused_file, entry.val);
-	goto out;
-bad_nofile:
-	pr_err("%s: %s%08lx\n", __func__, Bad_file, entry.val);
-out:
-	return NULL;
-}
-
-static struct swap_info_struct *swap_info_get_cont(swp_entry_t entry,
-					struct swap_info_struct *q)
-{
-	struct swap_info_struct *p;
-
-	p = _swap_info_get(entry);
-
-	if (p != q) {
-		if (q != NULL)
-			spin_unlock(&q->lock);
-		if (p != NULL)
-			spin_lock(&p->lock);
-	}
+		return NULL;
 	return p;
 }
 
@@ -1476,7 +1442,13 @@ void swapcache_free_entries(swp_entry_t *entries, int n)
 	if (nr_swapfiles > 1)
 		sort(entries, n, sizeof(entries[0]), swp_entry_cmp, NULL);
 	for (i = 0; i < n; ++i) {
-		p = swap_info_get_cont(entries[i], prev);
+		p = swap_info[swp_type(entries[i])];
+		if (p != prev) {
+			if (prev != NULL)
+				spin_unlock(&prev->lock);
+			if (p != NULL)
+				spin_lock(&p->lock);
+		}
 		if (p)
 			swap_entry_free(p, entries[i]);
 		prev = p;
